@@ -125,7 +125,7 @@ You could also get a better configuration with dotfiles from this repository.
 First clone this repository
 
 ```bash
-git clone https://github.com/pervezfunctor/.dev-config.git ~/.dev-config
+git clone https://github.com/pervezfunctor/dev-config.git ~/.dev-config
 ```
 
 Setup dotfiles with rsync
