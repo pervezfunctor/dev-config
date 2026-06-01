@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+log_msg() {
+  local level="$1"
+  local msg="$2"
+  echo "$level: $msg"
+}
+
+log_info() { log_msg "INFO" "$1"; }
+log_warn() { log_msg "WARNING" "$1"; }
+log_error() { log_msg "ERROR" "$1"; }
+
+has_cmd() {
+  command -v "$1" &>/dev/null
+}
+
+is_flatpak() {
+  flatpak list --columns=application | grep -q "$1"
+}
+
+prerequisite_check() {
+  local required=("flatpak" "gsettings" "dconf" "wget" "unzip" "fc-list" "pipx")
+  local missing=()
+
+  for cmd in "${required[@]}"; do
+    if ! has_cmd "$cmd"; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    log_error "Missing required tools: ${missing[*]}"
+    log_error "Install them and try again"
+    exit 1
+  fi
+}
+
+jetbrains_mono_install() {
+  if fc-list | grep -qi "jetbrains.*nerd"; then
+    log_info "JetBrains Mono Nerd Font already installed"
+    return
+  fi
+
+  log_info "Installing JetBrains Mono Nerd Font"
+  mkdir -p ~/.local/share/fonts
+  rm -rf /tmp/jetbrains-mono.zip /tmp/jetbrains-mono
+  wget -nv https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.zip -O /tmp/jetbrains-mono.zip
+  unzip -qq -d /tmp/jetbrains-mono -o /tmp/jetbrains-mono.zip
+  find /tmp/jetbrains-mono -name '*.ttf' -exec cp {} ~/.local/share/fonts/ \;
+  rm -rf /tmp/jetbrains-mono.zip /tmp/jetbrains-mono
+  log_info "JetBrains Mono Nerd Font installation done!"
+}
+
+bootstrap() {
+  export PATH="/home/linuxbrew/.linuxbrew/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:$HOME/.pixi/bin:$HOME/.opencode/bin:$HOME/.vite-plus/bin:$PATH"
+}
+
+main_extensions() {
+  if ! has_cmd gext; then
+    pipx install gnome-extensions-cli --system-site-packages
+  fi
+
+  if ! has_cmd gext; then
+    log_error "gext not found, skipping gnome extensions"
+    return
+  fi
+
+  local extensions=(
+    "paperwm@paperwm.github.com"
+    "switcher@landau.fi"
+    "windowsNavigator@gnome-shell-extensions.gcampax.github.com"
+    "blur-my-shell@aunetx"
+    "user-theme@gnome-shell-extensions.gcampax.github.com"
+  )
+
+  for ext in "${extensions[@]}"; do
+    gext install "$ext" 2>/dev/null || true
+    gext enable "$ext" 2>/dev/null || true
+  done
+}
+
+main_flatpaks() {
+  log_info "Adding flathub remote"
+  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo --user
+
+  local flatpaks=(
+    "com.mattjakeman.ExtensionManager"
+    "io.github.swordpuffin.rewaita"
+    "org.gtk.Gtk3theme.adw-gtk3"
+    "org.gtk.Gtk3theme.adw-gtk3-dark"
+    "page.tesk.Refine"
+    "dev.qwery.AddWater"
+  )
+  for pkg in "${flatpaks[@]}"; do
+    flatpak --user install -y flathub "$pkg" 2>/dev/null || true
+  done
+
+  flatpak --user override --filesystem=xdg-config/gtk-3.0:rw 2>/dev/null || true
+  flatpak --user override --filesystem=xdg-config/gtk-4.0:rw 2>/dev/null || true
+}
+
+rewaita_config() {
+  mkdir -p ~/.var/app/io.github.swordpuffin.rewaita/data
+  cat >~/.var/app/io.github.swordpuffin.rewaita/data/prefs.json <<'EOF'
+{
+"light-theme": "Catppuccin Latte 🌻.css",
+"dark-theme": "Catppuccin Mocha 🌿.css",
+"window-controls": "colored",
+"modify-gtk3-theme": true,
+"modify-gnome-shell": true,
+"run-in-background": true,
+"firefox-theme": true,
+"transparency": true,
+"window": false,
+"sharp": false,
+"light-text": false
+}
+EOF
+
+  dconf write /org/gnome/shell/extensions/user-theme/name "'rewaita'"
+}
+
+main_settings() {
+  gsettings set org.gnome.desktop.input-sources xkb-options "['caps:ctrl_modifier']"
+  gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+  gsettings set org.gnome.desktop.interface accent-color 'blue'
+  gsettings set org.gnome.desktop.interface gtk-key-theme "Emacs"
+  gsettings set org.gnome.desktop.wm.preferences resize-with-right-button true
+
+  gsettings set org.gnome.mutter dynamic-workspaces false
+  gsettings set org.gnome.desktop.wm.preferences num-workspaces 4
+
+  dconf write /org/gnome/shell/extensions/blur-my-shell/panel/blur false
+  dconf write /org/gnome/shell/extensions/blur-my-shell/applications/blur true
+  dconf write /org/gnome/shell/extensions/blur-my-shell/applications/whitelist "['org.gnome.Ptyxis', 'dev.zed.Zed']"
+  dconf write /org/gnome/shell/extensions/paperwm/winprops "['{\"wm_class\":\"dev.zed.Zed\",\"preferredWidth\":\"67%\"}', '{\"wm_class\":\"org.gnome.Ptyxis\",\"preferredWidth\":\"33%\"}', '{\"wm_class\":\"vicinae\",\"scratch_layer\":true}', '{\"wm_class\":\"*\",\"preferredWidth\":\"50%\"}']"
+
+  dconf write /org/gnome/shell/extensions/switcher/max-width-percentage "uint32 25"
+  dconf write /org/gnome/shell/extensions/switcher/font-size "uint32 16"
+  dconf write /org/gnome/shell/extensions/switcher/icon-size "uint32 16"
+  dconf write /org/gnome/shell/extensions/switcher/matching "uint32 1"
+  dconf write /org/gnome/shell/extensions/switcher/activate-by-key "uint32 2"
+
+  dconf write /org/gnome/shell/extensions/paperwm/show-workspace-indicator false
+  dconf write /org/gnome/shell/extensions/paperwm/show-window-position-bar false
+
+  dconf write /org/gnome/shell/extensions/paperwm/cycle-width-steps "[0.3333, 0.5, 0.6667]"
+
+  dconf write /org/gnome/shell/extensions/paperwm/selection-border-size 5
+  dconf write /org/gnome/shell/extensions/paperwm/window-gap 12
+  dconf write /org/gnome/shell/extensions/paperwm/horizontal-margin 12
+  dconf write /org/gnome/shell/extensions/paperwm/vertical-margin 12
+  dconf write /org/gnome/shell/extensions/paperwm/vertical-margin-bottom 12
+
+  dconf write /org/gnome/desktop/screensaver/restart-enabled true
+  dconf write /org/gnome/desktop/interface/font-antialiasing 'rgba'
+  dconf write /org/gnome/mutter/center-new-windows true
+
+  rewaita_config
+}
+
+main_keybindings() {
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/close-window "['<Super>BackSpace', '<Super>q']"
+
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-right "['<Super>Right']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-left "['<Super>Left']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-up "['<Super>Up']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-down "['<Super>Down']"
+
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-up "['<Shift><Super>Up']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-down "['<Shift><Super>Down']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-left "['<Shift><Super>Left']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-right "['<Shift><Super>Right']"
+
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-up-workspace "['<Super>Page_Up', '<Super><Control>Left']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-down-workspace "['<Super>Page_Down', '<Super><Control>Right']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-up-workspace "['<Shift><Super>Page_Up', '<Super><Control><Shift>Left']"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-down-workspace "['<Shift><Super>Page_Down', '<Super><Control><Shift>Right']"
+
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/new-window "['<Super>n']"
+
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-monitor-above "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-monitor-below "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-monitor-left "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-monitor-right "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-space-monitor-above "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-space-monitor-below "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-space-monitor-left "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/move-space-monitor-right "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/open-window-position-down "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/open-window-position-left "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/swap-monitor-above "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/swap-monitor-below "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/swap-monitor-left "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/swap-monitor-right "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-monitor-above "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-monitor-below "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-monitor-left "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-monitor-right "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-next "@as []"
+  dconf write /org/gnome/shell/extensions/paperwm/keybindings/switch-previous "@as []"
+  dconf write /org/gnome/desktop/wm/keybindings/show-desktop "@as []"
+
+  dconf write /org/gnome/shell/extensions/dash-to-dock/hot-keys false
+  dconf write /org/gnome/desktop/wm/preferences/num-workspaces 4
+  dconf write /org/gnome/desktop/wm/keybindings/switch-to-workspace-1 "['<Super>1']"
+  dconf write /org/gnome/desktop/wm/keybindings/switch-to-workspace-2 "['<Super>2']"
+  dconf write /org/gnome/desktop/wm/keybindings/switch-to-workspace-3 "['<Super>3']"
+  dconf write /org/gnome/desktop/wm/keybindings/switch-to-workspace-4 "['<Super>4']"
+  dconf write /org/gnome/desktop/wm/preferences/workspace-names "['1', '2', '3', '4']"
+}
+
+main_ptyxis() {
+  if ! has_cmd ptyxis && ! is_flatpak "org.gnome.Ptyxis"; then
+    log_error "ptyxis not found, skipping Ptyxis configuration"
+    return
+  fi
+
+  log_info "Configuring Ptyxis"
+
+  gsettings set org.gnome.Ptyxis use-system-font false
+  gsettings set org.gnome.Ptyxis interface-style 'system'
+
+  if fc-list : family | grep -q "JetBrainsMono Nerd Font"; then
+    gsettings set org.gnome.Ptyxis font-name 'JetBrainsMono Nerd Font 11'
+  elif fc-list : family | grep -q "Cascadia Mono NF"; then
+    gsettings set org.gnome.Ptyxis font-name 'Cascadia Mono NF 11'
+  fi
+
+  local profid
+  profid=$(gsettings get org.gnome.Ptyxis default-profile-uuid | tr -d "'")
+  if [[ -z "$profid" ]]; then
+    log_error "No default profile. Open ptyxis and run 'gnome.nu ptyxis'."
+    return
+  fi
+
+  local profile="org.gnome.Ptyxis.Profile:/org/gnome/Ptyxis/Profiles/${profid}/"
+  gsettings set "$profile" opacity 0.85
+  gsettings set "$profile" palette "Catppuccin Mocha"
+}
+
+main_help() {
+  cat <<'EOF'
+Usage: gnome.sh <command>
+
+  Available commands:
+  extensions      Install GNOME extensions (paperwm etc)
+  settings        Configure GNOME settings
+  keybindings     Configure GNOME keybindings
+  flatpaks        Manage GNOME flatpaks
+  ptyxis          Configure Ptyxis terminal
+  jetbrains-mono  Install JetBrains Mono Nerd Font
+  help            Show this help message
+EOF
+}
+
+main() {
+  bootstrap
+  prerequisite_check
+
+  local cmd="${1:-}"
+  case "$cmd" in
+  extensions) main_extensions ;;
+  settings) main_settings ;;
+  keybindings) main_keybindings ;;
+  flatpaks) main_flatpaks ;;
+  ptyxis) main_ptyxis ;;
+  jetbrains-mono) jetbrains_mono_install ;;
+  help | "") main_help ;;
+  *)
+    log_error "Unknown command: $cmd"
+    main_help
+    return 1
+    ;;
+  esac
+}
+
+main "$@"

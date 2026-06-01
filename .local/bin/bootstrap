@@ -21,59 +21,48 @@ setup_colors() {
 info() { printf "${BOLD}${GREEN}[INFO]${NC}  %s\n" "$*"; }
 warn() { printf "${BOLD}${YELLOW}[WARN]${NC}  %s\n" "$*"; }
 error() { printf "${BOLD}${RED}[ERROR]${NC} %s\n" "$*" >&2; }
+die() {
+  error "$*"
+  exit 1
+}
+
+has_cmd() {
+  command -v "$1" &>/dev/null
+}
 
 detect_os() {
-  if command -v apt &>/dev/null; then
+  if has_cmd apt; then
     OS="ubuntu"
-  elif command -v dnf &>/dev/null; then
+  elif has_cmd dnf; then
     OS="fedora"
-  elif command -v pacman &>/dev/null; then
+  elif has_cmd pacman; then
     OS="arch"
   else
-    error "Unsupported OS — only Debian/Ubuntu, Fedora, and Arch are supported."
-    exit 1
+    die "Unsupported OS — only Debian/Ubuntu, Fedora, and Arch are supported."
   fi
   info "Detected OS: ${OS}"
 }
 
-ensure_sudo() {
-  if [[ $EUID -ne 0 ]]; then
-    info "Elevating privileges…"
-    sudo -v || {
-      error "sudo required"
-      exit 1
-    }
-  fi
-}
-
-update_system() {
-  info "Updating system packages…"
-  case "${OS}" in
-  ubuntu) sudo apt update && sudo apt upgrade -y ;;
-  fedora) sudo dnf update --refresh -y ;;
-  arch) sudo pacman -Syu --noconfirm ;;
-  esac
-}
-
 install_os_packages() {
   info "Installing OS packages…"
+
+  local -a pkgs=(
+    curl git wget trash-cli tar unzip zip fish clang cmake entr gcc make
+    alacritty rsync
+  )
+
   case "${OS}" in
   ubuntu)
-    sudo apt install -y \
-      curl git wget trash-cli build-essential tar unzip zip fish \
-      clang cmake entr gcc make pkg-config clang-tools alacritty rsync \
-      ninja-build
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y build-essential pkg-config clang-tools ninja-build "${pkgs[@]}"
     ;;
   fedora)
-    sudo dnf install -y \
-      curl git wget trash-cli gcc make tar unzip zip fish rsync \
-      clang cmake entr gcc make pkg-config clang-tools-extra alacritty \
-      ninja-build
+    sudo dnf update --refresh -y
+    sudo dnf install -y pkg-config clang-tools-extra ninja-build "${pkgs[@]}"
     ;;
   arch)
-    sudo pacman -S --noconfirm \
-      curl git wget trash-cli tar unzip zip fish rsync ninja \
-      clang cmake entr pkgconf alacritty base-devel
+    sudo pacman -Syu --noconfirm
+    sudo pacman -S --noconfirm ninja pkgconf base-devel "${pkgs[@]}"
     ;;
   esac
 }
@@ -94,7 +83,7 @@ set_fish_default() {
 }
 
 install_uv() {
-  if command -v uv &>/dev/null; then
+  if has_cmd uv; then
     info "uv already installed, skipping."
     return 0
   fi
@@ -105,7 +94,7 @@ install_uv() {
 }
 
 install_homebrew() {
-  if command -v brew &>/dev/null; then
+  if has_cmd brew; then
     info "Homebrew already installed, skipping."
     return 0
   fi
@@ -114,17 +103,24 @@ install_homebrew() {
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 }
 
-install_brew_packages() {
+install_shell_packages() {
+  brew install --cask font-jetbrains-mono-nerd-font opencode
+
+  if is_arch; then
+    sudo pacman -S starship trash-cli fzf eza zoxide bat github-cli ripgrep tealdeer direnv fd jq bottom \
+      neovim luarocks imagemagick tectonic mermaid-cli lazygit tree-sitter unibilium
+    brew install carapace
+    return 0
+  fi
+
   info "Installing packages via Homebrew…"
   brew install \
-    starship trash-cli fzf eza zoxide bat gh ripgrep tealdeer direnv fd jq bottom \
+    starship fzf eza zoxide bat gh ripgrep tealdeer direnv fd jq bottom \
     neovim luarocks imagemagick tectonic mermaid-cli lazygit carapace
-
-  brew install --cask font-jetbrains-mono-nerd-font
 }
 
 install_zed() {
-  if command -v zed &>/dev/null || command -v zed-editor &>/dev/null; then
+  if has_cmd zed || has_cmd zed-editor; then
     info "Zed editor already installed, skipping."
     return 0
   fi
@@ -134,9 +130,8 @@ install_zed() {
 }
 
 sync_dotfiles() {
-  if ! command -v rsync &>/dev/null; then
-    error "rsync is not installed."
-    exit 1
+  if ! has_cmd rsync; then
+    die "rsync is not installed."
   fi
 
   local repo_dir="${HOME}/.dev-config"
@@ -147,8 +142,7 @@ sync_dotfiles() {
 
   if [[ ! -d "${src_dir}" ]]; then
     git clone https://github.com/pervezfunctor/dev-config.git "${repo_dir}" || {
-      error "Failed to clone dev-config repository."
-      exit 1
+      die "Failed to clone dev-config repository."
     }
   fi
 
@@ -165,13 +159,17 @@ sync_dotfiles() {
 }
 
 install_docker() {
-  if command -v docker &>/dev/null; then
+  if has_cmd docker; then
     info "Docker already installed, skipping."
     return 0
   fi
 
-  info "Installing Docker via official script…"
-  curl -fsSL https://get.docker.com | sh
+  if is_arch; then
+    sudo pacman -S docker docker-compose
+  else
+    info "Installing Docker via official script…"
+    curl -fsSL https://get.docker.com | sh
+  fi
   info "Adding ${USER} to the docker group…"
   sudo usermod -aG docker "${USER}"
   warn "Log out and back in (or reboot) for docker group to take effect."
@@ -186,15 +184,13 @@ main() {
   info "Starting setup (alacritty + zed)…"
   echo ""
 
-  ensure_sudo
-  update_system
   install_os_packages
   install_docker
   set_fish_default
 
-  install_uv
   install_homebrew
-  install_brew_packages
+  install_shell_packages
+  install_uv
   install_zed
 
   echo ""

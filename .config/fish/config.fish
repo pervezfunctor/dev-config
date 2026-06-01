@@ -68,6 +68,11 @@ else if has_cmd apt
     alias r 'sudo apt remove'
     alias s 'apt search'
     alias u 'sudo apt update; and sudo apt upgrade'
+  else if has_cmd pacman
+    alias i 'sudo pacman -S'
+    alias r 'sudo pacman -R'
+    alias s 'pacman -Ss'
+    alias u 'sudo pacman -Syu'
 end
 
 if has_cmd zoxide
@@ -97,29 +102,11 @@ if has_cmd eza
 end
 
 function update-all
-    sudo pacman -Syyu
-    if has_cmd brew
-      brew update && brew upgrade
-    end
-    if has_cmd pixi
-      pixi self-update
-      pixi global update
-    end
-    if has_cmd vp
-      vp update -g
-    end
-    if has_cmd rustup
-      rustup update stable
-    end
-    if has_cmd nix
-      hms
-    end
-    if has_cmd uv
-      uv self update
-    end
-    if has_cmd mise
-      mise self-update
-      mise plugins update
-      mise upgrade --bump
-    end
+  u
+  if has_cmd brew
+    brew update && brew upgrade
+  end
+  if has_cmd uv
+    uv self update
+  end
 end
