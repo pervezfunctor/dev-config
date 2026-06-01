@@ -47,8 +47,8 @@ install_os_packages() {
   info "Installing OS packages…"
 
   local -a pkgs=(
-    curl git wget trash-cli tar unzip zip fish clang cmake entr gcc make
-    alacritty rsync
+    curl git wget trash-cli tar unzip zip fish
+    clang cmake entr gcc make rsync alacritty
   )
 
   case "${OS}" in
@@ -104,11 +104,9 @@ install_homebrew() {
 }
 
 install_shell_packages() {
-  brew install --cask font-jetbrains-mono-nerd-font opencode
-
   if is_arch; then
-    sudo pacman -S starship trash-cli fzf eza zoxide bat github-cli ripgrep tealdeer direnv fd jq bottom \
-      neovim luarocks imagemagick tectonic mermaid-cli lazygit tree-sitter unibilium
+    sudo pacman -S github-cli starship trash-cli fzf eza zoxide bat ripgrep tealdeer direnv fd jq bottom \
+      neovim luarocks imagemagick tectonic mermaid-cli lazygit tree-sitter unibilium ttf-jetbrains-mono-nerd
     brew install carapace
     return 0
   fi
@@ -117,6 +115,7 @@ install_shell_packages() {
   brew install \
     starship fzf eza zoxide bat gh ripgrep tealdeer direnv fd jq bottom \
     neovim luarocks imagemagick tectonic mermaid-cli lazygit carapace
+  brew install --cask font-jetbrains-mono-nerd-font opencode
 }
 
 install_zed() {
