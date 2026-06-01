@@ -116,7 +116,7 @@ git clone https://github.com/pervezfunctor/dev-config.git ~/.dev-config
 Setup dotfiles with rsync
 
 ```bash
-rsync -av ~/.dev-config/ ~/
+rsync -av --backup ~/.dev-config/ ~/
 ```
 
 Remove the cloned repository

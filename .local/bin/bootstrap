@@ -50,7 +50,8 @@ install_packages() {
 
   local -a pkgs=(
     curl git wget trash-cli tar unzip zip fish rsync
-    clang cmake entr gcc make fastfetch
+    clang cmake entr gcc make fzf eza zoxide bat
+    ripgrep tealdeer direnv jq flatpak ptyxis
   )
 
   case "${OS}" in
@@ -60,7 +61,7 @@ install_packages() {
     ;;
   fedora)
     sudo dnf update --refresh -y
-    sudo dnf install -y pkg-config clang-tools-extra ninja-build "${pkgs[@]}"
+    sudo dnf install -y pkg-config g++ clang-tools-extra ninja-build g++ "${pkgs[@]}"
     ;;
   arch)
     sudo pacman -Syu --noconfirm
@@ -68,7 +69,7 @@ install_packages() {
     ;;
   tw)
     sudo zypper refresh
-    sudo zypper install -y ninja pkg-config gcc make "${pkgs[@]}"
+    sudo zypper install -y ninja pkg-config gcc-c++ "${pkgs[@]}"
     ;;
   esac
 }
@@ -115,20 +116,10 @@ is_desktop() {
 
 install_brew_packages() {
   info "Installing packages via Homebrew…"
-  brew install starship gh fd bottom carapace trash-cli fzf eza zoxide bat ripgrep tealdeer direnv jq
-  brew install --cask opencode
-
-  if is_desktop; then
-    brew install --cask font-jetbrains-mono-nerd-font
-  fi
+  brew install starship gh fd carapace
 }
 
 install_zed() {
-  if ! is_desktop; then
-    info "Not a desktop environment, skipping Zed installation."
-    return 0
-  fi
-
   if has_cmd zed || has_cmd zed-editor; then
     info "Zed editor already installed, skipping."
     return 0
@@ -185,6 +176,8 @@ install_docker() {
 }
 
 main() {
+  is_desktop || die "Not a desktop environment"
+
   export PATH="$HOME/.local/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
 
   setup_colors
@@ -201,7 +194,10 @@ main() {
   install_brew_packages
 
   install_uv
+
   install_zed
+  gnome-setup jetbrains-mono
+  gnome-setup ptyxis
 
   echo ""
   info "All done! Restart your terminal to enjoy your new environment."

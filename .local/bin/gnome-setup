@@ -37,7 +37,7 @@ prerequisite_check() {
   fi
 }
 
-jetbrains_mono_install() {
+main_jetbrains_mono() {
   if fc-list | grep -qi "jetbrains.*nerd"; then
     log_info "JetBrains Mono Nerd Font already installed"
     return
@@ -51,10 +51,6 @@ jetbrains_mono_install() {
   find /tmp/jetbrains-mono -name '*.ttf' -exec cp {} ~/.local/share/fonts/ \;
   rm -rf /tmp/jetbrains-mono.zip /tmp/jetbrains-mono
   log_info "JetBrains Mono Nerd Font installation done!"
-}
-
-bootstrap() {
-  export PATH="/home/linuxbrew/.linuxbrew/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:$HOME/.pixi/bin:$HOME/.opencode/bin:$HOME/.vite-plus/bin:$PATH"
 }
 
 main_extensions() {
@@ -256,7 +252,7 @@ EOF
 }
 
 main() {
-  bootstrap
+  export PATH="/home/linuxbrew/.linuxbrew/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:$HOME/.pixi/bin:$HOME/.opencode/bin:$HOME/.vite-plus/bin:$PATH"
   prerequisite_check
 
   local cmd="${1:-}"
@@ -266,8 +262,16 @@ main() {
   keybindings) main_keybindings ;;
   flatpaks) main_flatpaks ;;
   ptyxis) main_ptyxis ;;
-  jetbrains-mono) jetbrains_mono_install ;;
-  help | "") main_help ;;
+  jetbrains-mono) main_jetbrains_mono ;;
+  help | -h | --help) main_help ;;
+  "")
+    main_extensions
+    main_settings
+    main_keybindings
+    main_flatpaks
+    main_ptyxis
+    main_jetbrains_mono
+    ;;
   *)
     log_error "Unknown command: $cmd"
     main_help

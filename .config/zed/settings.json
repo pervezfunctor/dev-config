@@ -31,13 +31,14 @@
     "basher": true,
     "catppuccin-blur": true,
     "catppuccin-icons": true,
-    "neocmake": true,
     "docker-compose": true,
     "dockerfile": true,
     "fish": true,
     "kdl": true,
     "make": true,
+    "neocmake": true,
     "python": true,
+    "toml": true,
   },
 
   "buffer_font_family": "JetBrainsMono Nerd Font",
@@ -87,15 +88,6 @@
   },
 
   "languages": {
-    "TypeScript": {
-      "tab_size": 2,
-    },
-    "Python": {
-      "tab_size": 2,
-      "indent_guides": {
-        "enabled": true,
-      },
-    },
     "C++": {
       "tab_size": 4,
       "colorize_brackets": true,
