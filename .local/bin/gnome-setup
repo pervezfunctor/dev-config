@@ -251,7 +251,6 @@ Usage: gnome.sh <command>
   keybindings     Configure GNOME keybindings
   flatpaks        Manage GNOME flatpaks
   ptyxis          Configure Ptyxis terminal
-  jetbrains-mono  Install JetBrains Mono Nerd Font
   help            Show this help message
 EOF
 }

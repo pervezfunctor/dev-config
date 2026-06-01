@@ -37,18 +37,20 @@ detect_os() {
     OS="fedora"
   elif has_cmd pacman; then
     OS="arch"
+  elif has_cmd zypper; then
+    OS="tw"
   else
-    die "Unsupported OS — only Debian/Ubuntu, Fedora, and Arch are supported."
+    die "Unsupported OS — only Debian/Ubuntu, Fedora, Tumbleweed, and Arch are supported."
   fi
   info "Detected OS: ${OS}"
 }
 
-install_os_packages() {
+install_packages() {
   info "Installing OS packages…"
 
   local -a pkgs=(
-    curl git wget trash-cli tar unzip zip fish
-    clang cmake entr gcc make rsync alacritty
+    curl git wget trash-cli tar unzip zip fish rsync
+    clang cmake entr gcc make fastfetch
   )
 
   case "${OS}" in
@@ -63,6 +65,10 @@ install_os_packages() {
   arch)
     sudo pacman -Syu --noconfirm
     sudo pacman -S --noconfirm ninja pkgconf base-devel "${pkgs[@]}"
+    ;;
+  tw)
+    sudo zypper refresh
+    sudo zypper install -y ninja pkg-config gcc make "${pkgs[@]}"
     ;;
   esac
 }
@@ -103,22 +109,26 @@ install_homebrew() {
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 }
 
-install_shell_packages() {
-  if is_arch; then
-    sudo pacman -S github-cli starship trash-cli fzf eza zoxide bat ripgrep tealdeer direnv fd jq bottom \
-      neovim luarocks imagemagick tectonic mermaid-cli lazygit tree-sitter unibilium ttf-jetbrains-mono-nerd
-    brew install carapace
-    return 0
-  fi
+is_desktop() {
+  [ -n "${XDG_CURRENT_DESKTOP}" ] || [ -n "${DISPLAY}" ] || [ -n "${WAYLAND_DISPLAY}" ]
+}
 
+install_brew_packages() {
   info "Installing packages via Homebrew…"
-  brew install \
-    starship fzf eza zoxide bat gh ripgrep tealdeer direnv fd jq bottom \
-    neovim luarocks imagemagick tectonic mermaid-cli lazygit carapace
-  brew install --cask font-jetbrains-mono-nerd-font opencode
+  brew install starship gh fd bottom carapace trash-cli fzf eza zoxide bat ripgrep tealdeer direnv jq
+  brew install --cask opencode
+
+  if is_desktop; then
+    brew install --cask font-jetbrains-mono-nerd-font
+  fi
 }
 
 install_zed() {
+  if ! is_desktop; then
+    info "Not a desktop environment, skipping Zed installation."
+    return 0
+  fi
+
   if has_cmd zed || has_cmd zed-editor; then
     info "Zed editor already installed, skipping."
     return 0
@@ -163,7 +173,7 @@ install_docker() {
     return 0
   fi
 
-  if is_arch; then
+  if [ "${OS}" = "arch" ] || [ "${OS}" = "tw" ]; then
     sudo pacman -S docker docker-compose
   else
     info "Installing Docker via official script…"
@@ -180,15 +190,16 @@ main() {
   setup_colors
   detect_os
 
-  info "Starting setup (alacritty + zed)…"
+  info "Starting setup…"
   echo ""
 
-  install_os_packages
+  install_packages
   install_docker
   set_fish_default
 
   install_homebrew
-  install_shell_packages
+  install_brew_packages
+
   install_uv
   install_zed
 

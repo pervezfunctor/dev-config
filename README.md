@@ -12,7 +12,7 @@ Run the bootstrap script:
 ~/.dev-config/.local/bin/bootstrap
 ```
 
-This will install and configure the following: fish shell, homebrew, neovim, zed, docker, and sync dotfiles. Restart your pc when done.
+This will install and configure the following: fish shell, homebrew, zed, docker, and sync dotfiles. Restart your pc when done.
 
 You can remove the repository after bootstrapping:
 

@@ -6,12 +6,12 @@ Install essential packages
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git wget trash-cli build-essential rsync fish alacritty
+sudo apt install -y curl git wget trash-cli build-essential rsync fish
 ```
 
 ```bash
 sudo dnf update
-sudo dnf install -y curl git wget trash-cli gcc make rsync fish alacritty
+sudo dnf install -y curl git wget trash-cli gcc make rsync fish
 ```
 
 ## Package Manager(homebrew)
@@ -64,21 +64,6 @@ If you prefer `vscode`, install with
 
 ```bash
 brew install --cask visual-studio-code-linux
-```
-
-If you prefer neovim
-
-```bash
-brew install neovim luarocks imagemagick tectonic mermaid-cli lazygit
-```
-
-Setup astronvim with the following commands
-
-```bash
-mkdir -p ~/.config/nvim
-trash ~/.config/nvim/ 2>/dev/null
-git clone --depth 1 https://github.com/AstroNvim/template ~/.config/nvim
-rm -rf ~/.config/nvim/.git
 ```
 
 ## Python

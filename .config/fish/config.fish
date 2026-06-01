@@ -43,7 +43,6 @@ alias g 'git'
 alias h 'btm'
 alias p 'pixi global install'
 alias t 'tmux'
-alias v 'nvim'
 
 alias fpi 'flatpak install --user flathub'
 alias fpr 'flatpak remove --user'
