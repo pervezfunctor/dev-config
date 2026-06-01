@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+setup_colors() {
+  if [[ -t 1 ]]; then
+    BOLD='\033[1m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    RED='\033[0;31m'
+    NC='\033[0m'
+  else
+    BOLD=''
+    GREEN=''
+    YELLOW=''
+    RED=''
+    NC=''
+  fi
+}
+
+info() { printf "${BOLD}${GREEN}[INFO]${NC}  %s\n" "$*"; }
+warn() { printf "${BOLD}${YELLOW}[WARN]${NC}  %s\n" "$*"; }
+error() { printf "${BOLD}${RED}[ERROR]${NC} %s\n" "$*" >&2; }
+
+detect_os() {
+  if command -v apt &>/dev/null; then
+    OS="ubuntu"
+  elif command -v dnf &>/dev/null; then
+    OS="fedora"
+  elif command -v pacman &>/dev/null; then
+    OS="arch"
+  else
+    error "Unsupported OS — only Debian/Ubuntu, Fedora, and Arch are supported."
+    exit 1
+  fi
+  info "Detected OS: ${OS}"
+}
+
+ensure_sudo() {
+  if [[ $EUID -ne 0 ]]; then
+    info "Elevating privileges…"
+    sudo -v || {
+      error "sudo required"
+      exit 1
+    }
+  fi
+}
+
+update_system() {
+  info "Updating system packages…"
+  case "${OS}" in
+  ubuntu) sudo apt update && sudo apt upgrade -y ;;
+  fedora) sudo dnf update --refresh -y ;;
+  arch) sudo pacman -Syu --noconfirm ;;
+  esac
+}
+
+install_os_packages() {
+  info "Installing OS packages…"
+  case "${OS}" in
+  ubuntu)
+    sudo apt install -y \
+      curl git wget trash-cli build-essential tar unzip zip fish \
+      clang cmake entr gcc make pkg-config clang-tools alacritty rsync \
+      ninja-build
+    ;;
+  fedora)
+    sudo dnf install -y \
+      curl git wget trash-cli gcc make tar unzip zip fish rsync \
+      clang cmake entr gcc make pkg-config clang-tools-extra alacritty \
+      ninja-build
+    ;;
+  arch)
+    sudo pacman -S --noconfirm \
+      curl git wget trash-cli tar unzip zip fish rsync ninja \
+      clang cmake entr pkgconf alacritty base-devel
+    ;;
+  esac
+}
+
+set_fish_default() {
+  local fish_path
+  fish_path="$(command -v fish)"
+  local current_shell
+  current_shell="$(grep "^${USER}:" /etc/passwd 2>/dev/null | cut -d: -f7 || true)"
+  if [[ "${current_shell}" == "${fish_path}" ]]; then
+    info "fish is already the default shell."
+    return 0
+  fi
+
+  info "Setting fish as the default shell…"
+  sudo chsh -s "${fish_path}" "${USER}"
+  warn "Log out and back in (or reboot) for the change to take effect."
+}
+
+install_uv() {
+  if command -v uv &>/dev/null; then
+    info "uv already installed, skipping."
+    return 0
+  fi
+
+  info "Installing uv (Python package manager)…"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  uv tool install pipx
+}
+
+install_homebrew() {
+  if command -v brew &>/dev/null; then
+    info "Homebrew already installed, skipping."
+    return 0
+  fi
+
+  info "Installing Homebrew…"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+}
+
+install_brew_packages() {
+  info "Installing packages via Homebrew…"
+  brew install \
+    starship trash-cli fzf eza zoxide bat gh ripgrep tealdeer direnv fd jq bottom \
+    neovim luarocks imagemagick tectonic mermaid-cli lazygit carapace
+
+  brew install --cask font-jetbrains-mono-nerd-font
+}
+
+install_zed() {
+  if command -v zed &>/dev/null || command -v zed-editor &>/dev/null; then
+    info "Zed editor already installed, skipping."
+    return 0
+  fi
+
+  info "Installing Zed editor…"
+  curl -f https://zed.dev/install.sh | sh
+}
+
+sync_dotfiles() {
+  if ! command -v rsync &>/dev/null; then
+    error "rsync is not installed."
+    exit 1
+  fi
+
+  local repo_dir="${HOME}/.dev-config"
+  local src_dir="${repo_dir}/.config"
+  local dest_dir="${HOME}/.config"
+  local backup_dir
+  backup_dir="${HOME}/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
+
+  if [[ ! -d "${src_dir}" ]]; then
+    git clone https://github.com/pervezfunctor/dev-config.git "${repo_dir}" || {
+      error "Failed to clone dev-config repository."
+      exit 1
+    }
+  fi
+
+  mkdir -p "${dest_dir}"
+
+  info "Syncing dotfiles to ${dest_dir}…"
+  rsync -av --backup --backup-dir="${backup_dir}" "${src_dir}/" "${dest_dir}/"
+
+  if [[ -d "${backup_dir}" ]]; then
+    info "Backup of existing files saved to ${backup_dir}"
+  else
+    info "No existing files needed backup."
+  fi
+}
+
+install_docker() {
+  if command -v docker &>/dev/null; then
+    info "Docker already installed, skipping."
+    return 0
+  fi
+
+  info "Installing Docker via official script…"
+  curl -fsSL https://get.docker.com | sh
+  info "Adding ${USER} to the docker group…"
+  sudo usermod -aG docker "${USER}"
+  warn "Log out and back in (or reboot) for docker group to take effect."
+}
+
+main() {
+  export PATH="$HOME/.local/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
+
+  setup_colors
+  detect_os
+
+  info "Starting setup (alacritty + zed)…"
+  echo ""
+
+  ensure_sudo
+  update_system
+  install_os_packages
+  install_docker
+  set_fish_default
+
+  install_uv
+  install_homebrew
+  install_brew_packages
+  install_zed
+
+  echo ""
+  info "All done! Restart your terminal to enjoy your new environment."
+}
+
+main "$@"
