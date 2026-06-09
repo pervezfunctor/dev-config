@@ -8,9 +8,13 @@ log_msg() {
   echo "$level: $msg"
 }
 
-log_info() { log_msg "INFO" "$1"; }
-log_warn() { log_msg "WARNING" "$1"; }
-log_error() { log_msg "ERROR" "$1"; }
+log() { log_msg "INFO" "$1"; }
+warn() { log_msg "WARN" "$1"; }
+error() { log_msg "ERROR" "$1"; }
+die() {
+  error "$@"
+  exit 1
+}
 
 has_cmd() {
   command -v "$1" &>/dev/null
@@ -31,26 +35,25 @@ prerequisite_check() {
   done
 
   if [[ ${#missing[@]} -gt 0 ]]; then
-    log_error "Missing required tools: ${missing[*]}"
-    log_error "Install them and try again"
-    exit 1
+    error "Missing required tools: ${missing[*]}"
+    die "Install them and try again"
   fi
 }
 
 main_jetbrains_mono() {
   if fc-list | grep -qi "jetbrains.*nerd"; then
-    log_info "JetBrains Mono Nerd Font already installed"
+    log "JetBrains Mono Nerd Font already installed"
     return
   fi
 
-  log_info "Installing JetBrains Mono Nerd Font"
+  log "Installing JetBrains Mono Nerd Font"
   mkdir -p ~/.local/share/fonts
   rm -rf /tmp/jetbrains-mono.zip /tmp/jetbrains-mono
   wget -nv https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.zip -O /tmp/jetbrains-mono.zip
   unzip -qq -d /tmp/jetbrains-mono -o /tmp/jetbrains-mono.zip
   find /tmp/jetbrains-mono -name '*.ttf' -exec cp {} ~/.local/share/fonts/ \;
   rm -rf /tmp/jetbrains-mono.zip /tmp/jetbrains-mono
-  log_info "JetBrains Mono Nerd Font installation done!"
+  log "JetBrains Mono Nerd Font installation done!"
 }
 
 main_extensions() {
@@ -59,7 +62,7 @@ main_extensions() {
   fi
 
   if ! has_cmd gext; then
-    log_error "gext not found, skipping gnome extensions"
+    error "gext not found, skipping gnome extensions"
     return
   fi
 
@@ -78,7 +81,7 @@ main_extensions() {
 }
 
 main_flatpaks() {
-  log_info "Adding flathub remote"
+  log "Adding flathub remote"
   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo --user
 
   local flatpaks=(
@@ -210,11 +213,11 @@ main_keybindings() {
 
 main_ptyxis() {
   if ! has_cmd ptyxis && ! is_flatpak "org.gnome.Ptyxis"; then
-    log_error "ptyxis not found, skipping Ptyxis configuration"
+    error "ptyxis not found, skipping Ptyxis configuration"
     return
   fi
 
-  log_info "Configuring Ptyxis"
+  log "Configuring Ptyxis"
 
   gsettings set org.gnome.Ptyxis use-system-font false
   gsettings set org.gnome.Ptyxis interface-style 'system'
@@ -228,7 +231,7 @@ main_ptyxis() {
   local profid
   profid=$(gsettings get org.gnome.Ptyxis default-profile-uuid | tr -d "'")
   if [[ -z "$profid" ]]; then
-    log_error "No default profile. Open ptyxis and run 'gnome.nu ptyxis'."
+    error "No default profile. Open ptyxis and run 'gnome.nu ptyxis'."
     return
   fi
 
@@ -273,7 +276,7 @@ main() {
     main_jetbrains_mono
     ;;
   *)
-    log_error "Unknown command: $cmd"
+    error "Unknown command: $cmd"
     main_help
     return 1
     ;;
